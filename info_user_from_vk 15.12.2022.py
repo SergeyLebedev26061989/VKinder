@@ -2,63 +2,91 @@ import vk_api, requests, json
 import pprint
 
 API_URL = 'https://api.vk.com/method/'
-user_token = ''
-
 
 class VK:
+    def __init__(self, user_token, API_URL):
+        self.user_token = user_token
+        self.API_URL = API_URL
+        self.idnum = []
+
     def get_info(self, user_ids):
         method = 'users.get'
-        url = self.API_URL + method
+        url = API_URL + method
         params = {
             'user_ids': user_ids,
             'access_token': self.user_token,
-            'fields': 'screen_name, city, bdate, sex, screen_name',
+            'fields': 'city, bdate, sex',
             'v': '5.131'
         }
         res = requests.get(url, params=params)
         response = res.json().get("response")
         return response
 
+    def get_vk_photo(self, id):
+        metod = 'photos.get'
+        list_photos = {}
+        params = {
+            'access_token': self.user_token,
+            'v': '5.131',
+            'owner_id': id,
+            'album_id': 'profile',
+            'extended': '1'
+        }
+        response = requests.get(url=API_URL + metod, params=params)
+        photo = response.json()
+        if 'response' in photo.keys():
+            for i in photo['response']['items']:
+                index_size = 99
+                for j in i['sizes']:
+                    k = 'wzyrqpoxms'.find(j['type'])
+                    if k < index_size:
+                        index_size = k
+                        max_url = j['url']
+                list_photos.update([(i['likes']['count'], max_url)])
+            # pprint(list_photos)
+            return [sorted(list_photos.items(), key=lambda x: -x[0])[i][1] for i in range(min(3, len(list_photos)))]
 
     def search_users(self, sex, age_at, age_to, city):
         all_persons = []
-        idnum = []
         link_profile = 'https://vk.com/id'
-        vk_ = vk_api.VkApi(token=user_token)
+        vk_ = vk_api.VkApi(token=self.user_token)
         response = vk_.method('users.search',
-                              {'sort': 1,
+                              {'v': '5.89',
                                'sex': sex,
-                               'status': 1,
                                'age_from': age_at,
                                'age_to': age_to,
-                               'has_photo': 1,
-                               'album_id': 'profile',
-                               'count': 25,
-                               'online': 1,
-                               'hometown': city
+                               'hometown': city,
+                               'fields': 'bdate',
+                               "can_access_closed": False,
+                               "is_closed": True
                                })
+        pprint(response)
         for element in response['items']:
-            person = [
-                element['first_name'],
-                element['last_name'],
-                link_profile + str(element['id']),
-                element['id']
-            ]
-            person_id = [
-                element['id']
-            ]
-            all_persons.append(person)
-            idnum.append(person_id)
-        for i in idnum:
-            self.get_vk_photo(i, user_token)
+            pprint(element)
+            id = element['id']
+            photo = self.get_vk_photo(id)
+            if photo is not None:
+                person = [
+                    id,
+                    element['first_name'],
+                    element['last_name'],
+                    element['bdate'],
+                    link_profile + str(element['id']),
+                    photo
+                ]
+                all_persons.append(person)
+        return all_persons
 
-        return all_persons, idnum, i
 
-sex = int(input('введите пол \n 1 - женский, \n 2 - мужской: '))
-age_at = int(input("возраст от "))
-age_to = int(input("возраст до "))
-city = input("город: ")
-find_people = VK.search_users(sex, age_at, age_to, city)
-print(f'запрос поиска людей в возрасте от {age_at} до {age_to} лет из города {city}\nрезультат: {find_people}')
-VK.search_users(sex, age_at, age_to, city)
+def main():
+    user_token = ''
+    sex = int(input('введите пол \n 1 - женский, \n 2 - мужской: '))
+    age_at = int(input("возраст от: "))
+    age_to = int(input("возраст до: "))
+    city = input("город: ")
+    find_people = VK(user_token, API_URL)
+    pprint(find_people.search_users(sex, age_at, age_to, city))
 
+
+if __name__ == '__main__':
+    main()
